@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "CrossPointSettings.h"
+#include "BookloreCredentialStore.h"
 #include "KOReaderCredentialStore.h"
 #include "activities/settings/SettingsActivity.h"
 
@@ -213,6 +214,28 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
               KOREADER_STORE.saveToFile();
             },
             "koMatchMethod", StrId::STR_KOREADER_SYNC),
+        // --- Booklore Sync (web-only, uses BookloreCredentialStore) ---
+        SettingInfo::DynamicString(
+            StrId::STR_BOOKLORE_SERVER_URL, [] { return BOOKLORE_STORE.getServerUrl(); },
+            [](const std::string& v) {
+              BOOKLORE_STORE.setServerUrl(v);
+              BOOKLORE_STORE.saveToFile();
+            },
+            "blServerUrl", StrId::STR_BOOKLORE_SYNC),
+        SettingInfo::DynamicString(
+            StrId::STR_USERNAME, [] { return BOOKLORE_STORE.getUsername(); },
+            [](const std::string& v) {
+              BOOKLORE_STORE.setCredentials(v, BOOKLORE_STORE.getPassword());
+              BOOKLORE_STORE.saveToFile();
+            },
+            "blUsername", StrId::STR_BOOKLORE_SYNC),
+        SettingInfo::DynamicString(
+            StrId::STR_PASSWORD, [] { return BOOKLORE_STORE.getPassword(); },
+            [](const std::string& v) {
+              BOOKLORE_STORE.setCredentials(BOOKLORE_STORE.getUsername(), v);
+              BOOKLORE_STORE.saveToFile();
+            },
+            "blPassword", StrId::STR_BOOKLORE_SYNC),
         // --- Status Bar Settings (web-only, uses StatusBarSettingsActivity) ---
         SettingInfo::Toggle(StrId::STR_CHAPTER_PAGE_COUNT, &CrossPointSettings::statusBarChapterPageCount,
                             "statusBarChapterPageCount", StrId::STR_CUSTOMISE_STATUS_BAR),
