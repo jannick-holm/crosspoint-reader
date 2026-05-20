@@ -100,22 +100,24 @@ void BookloreSyncActivity::performSync() {
   LOG_DBG("BLS", "Book matched: id=%ld remote=%.1f%% local=%.1f%%",
           bookMatch.bookId, remoteProgressPercent, localProgressPercent);
 
-  // Already in sync (within 1%)?
-  if (fabsf(remoteProgressPercent - localProgressPercent) < 1.0f) {
+  // No remote progress yet — offer to upload local.
+  // Must check this before the delta check: both being ~0% would otherwise
+  // falsely report "already in sync" for a book never synced before.
+  if (remoteProgressPercent <= 0.0f) {
+    ensureEpubLoaded();
     {
       RenderLock lock(*this);
-      state = ALREADY_SYNCED;
+      state = NO_REMOTE_PROGRESS;
     }
     requestUpdate(true);
     return;
   }
 
-  if (remoteProgressPercent <= 0.0f) {
-    // No remote progress yet — offer to upload local
-    ensureEpubLoaded();
+  // Already in sync (within 1%)?
+  if (fabsf(remoteProgressPercent - localProgressPercent) < 1.0f) {
     {
       RenderLock lock(*this);
-      state = NO_REMOTE_PROGRESS;
+      state = ALREADY_SYNCED;
     }
     requestUpdate(true);
     return;

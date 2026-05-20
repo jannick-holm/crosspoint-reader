@@ -228,30 +228,14 @@ BookloreClient::Error BookloreClient::searchBook(const std::string& title, const
   JsonObject book = doc[0].as<JsonObject>();
   outMatch.bookId = book["id"].as<long>();
 
-  // Find the EPUB file entry to get its bookFileId
-  outMatch.bookFileId = 0;
-  JsonArray files = book["bookFiles"].as<JsonArray>();
-  for (JsonObject f : files) {
-    const char* fileType = f["bookType"];
-    if (fileType && strcmp(fileType, "EPUB") == 0) {
-      outMatch.bookFileId = f["id"].as<long>();
-      break;
-    }
-  }
+  // Primary file holds the bookFileId used for progress updates.
+  outMatch.bookFileId = book["primaryFile"]["id"].as<long>();
 
-  // Extract progress percent (may be nested under userProgress or fileProgress)
+  // epubProgress.percentage is 0.0–1.0; convert to 0–100.
   outMatch.progressPercent = 0.0f;
-  JsonObject progress = book["userProgress"].as<JsonObject>();
-  if (!progress.isNull()) {
-    float pct = progress["epubProgressPercent"].as<float>();
-    if (pct > 0.0f) outMatch.progressPercent = pct * 100.0f;
-  }
-  // Also check file-level progress (newer Booklore dual-write path)
-  if (outMatch.progressPercent <= 0.0f) {
-    JsonObject fileProgress = book["fileProgress"].as<JsonObject>();
-    if (!fileProgress.isNull()) {
-      outMatch.progressPercent = fileProgress["progressPercent"].as<float>();
-    }
+  JsonObject epubProgress = book["epubProgress"].as<JsonObject>();
+  if (!epubProgress.isNull()) {
+    outMatch.progressPercent = epubProgress["percentage"].as<float>() * 100.0f;
   }
 
   LOG_DBG("BLS", "Found book %ld (fileId=%ld) at %.1f%%",
