@@ -36,6 +36,23 @@ void ActivityManager::renderTaskTrampoline(void* param) {
 void ActivityManager::renderTaskLoop() {
   while (true) {
     ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // If a transition is already queued, skip this render cycle. The main task
+    // needs the render lock to execute the transition, and the new activity
+    // will request its own render once it starts.
+    // Still notify any requestUpdateAndWait() caller so it doesn't deadlock.
+    if (pendingAction != PendingAction::None) {
+      TaskHandle_t waiter = nullptr;
+      taskENTER_CRITICAL(nullptr);
+      waiter = waitingTaskHandle;
+      waitingTaskHandle = nullptr;
+      taskEXIT_CRITICAL(nullptr);
+      if (waiter) {
+        xTaskNotify(waiter, 1, eIncrement);
+      }
+      continue;
+    }
+
     // Acquire the lock before reading currentActivity to avoid a TOCTOU race
     // where the main task deletes the activity between the null-check and render().
     RenderLock lock;
@@ -69,6 +86,7 @@ void ActivityManager::loop() {
         // Should never happen in practice
         LOG_ERR("ACT", "Pop set but currentActivity is null; ignoring pop request");
         pendingAction = PendingAction::None;
+        renderer.setDisplaySuppressed(false);
         continue;
       }
 
@@ -101,6 +119,7 @@ void ActivityManager::loop() {
 
         // Request an update to ensure the popped activity gets re-rendered
         if (pendingAction == PendingAction::None) {
+          renderer.setDisplaySuppressed(false);
           requestUpdate();
         }
 
@@ -129,6 +148,7 @@ void ActivityManager::loop() {
       currentActivity = std::move(pendingActivity);
 
       lock.unlock();  // onEnter may acquire its own lock
+      renderer.setDisplaySuppressed(false);
       currentActivity->onEnter();
 
       // onEnter may request another pending action, we will handle it in the next loop iteration
@@ -157,13 +177,18 @@ void ActivityManager::exitActivity(const RenderLock& lock) {
 void ActivityManager::replaceActivity(std::unique_ptr<Activity>&& newActivity) {
   // Note: no lock here, this is usually called by loop() and we may run into deadlock
   if (currentActivity) {
+    // Suppress display updates so the render task releases the render lock quickly,
+    // allowing the main task to execute the transition without a ~1.5 s wait.
+    renderer.setDisplaySuppressed(true);
     // Defer launch if we're currently in an activity, to avoid deleting the current activity
     // leading to the "delete this" problem
     pendingActivity = std::move(newActivity);
     pendingAction = PendingAction::Replace;
   } else {
-    // No current activity, safe to launch immediately
+    // No current activity, safe to launch immediately. Clear any suppression
+    // that may have been set by an earlier popActivity() or pushActivity().
     currentActivity = std::move(newActivity);
+    renderer.setDisplaySuppressed(false);
     currentActivity->onEnter();
   }
 }
@@ -217,6 +242,7 @@ void ActivityManager::pushActivity(std::unique_ptr<Activity>&& activity) {
     LOG_ERR("ACT", "pendingActivity while pushActivity is not expected");
     pendingActivity.reset();
   }
+  renderer.setDisplaySuppressed(true);
   pendingActivity = std::move(activity);
   pendingAction = PendingAction::Push;
 }
@@ -227,6 +253,7 @@ void ActivityManager::popActivity() {
     LOG_ERR("ACT", "pendingActivity while popActivity is not expected");
     pendingActivity.reset();
   }
+  renderer.setDisplaySuppressed(true);
   pendingAction = PendingAction::Pop;
 }
 
