@@ -235,7 +235,7 @@ BookloreClient::Error BookloreClient::searchBook(const std::string& title, const
   outMatch.progressPercent = 0.0f;
   JsonObject epubProgress = book["epubProgress"].as<JsonObject>();
   if (!epubProgress.isNull()) {
-    outMatch.progressPercent = epubProgress["percentage"].as<float>() * 100.0f;
+    outMatch.progressPercent = epubProgress["percentage"].as<float>();
   }
 
   LOG_DBG("BLS", "Found book %ld (fileId=%ld) at %.1f%%",
