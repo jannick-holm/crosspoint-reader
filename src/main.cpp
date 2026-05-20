@@ -19,6 +19,7 @@
 
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
+#include "BookloreCredentialStore.h"
 #include "KOReaderCredentialStore.h"
 #include "MappedInputManager.h"
 #include "OpdsServerStore.h"
@@ -307,6 +308,7 @@ void setup() {
   SETTINGS.loadFromFile();
   I18N.setLanguage(static_cast<Language>(SETTINGS.language));
   KOREADER_STORE.loadFromFile();
+  BOOKLORE_STORE.loadFromFile();
   OPDS_STORE.loadFromFile();
   UITheme::getInstance().reload();
   ButtonNavigator::setMappedInputManager(mappedInputManager);
