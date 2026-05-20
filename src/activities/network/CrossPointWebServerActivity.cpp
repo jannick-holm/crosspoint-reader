@@ -285,7 +285,6 @@ void CrossPointWebServerActivity::loop() {
           if (millis() - firstDisconnectAt > WIFI_ABANDON_MS) {
             LOG_DBG("WEBACT", "WiFi unavailable for >%lu s; returning to network selection", WIFI_ABANDON_MS / 1000UL);
             state = WebServerActivityState::SHUTTING_DOWN;
-            webServer.reset();
             onGoHome();
             return;
           }
@@ -340,11 +339,12 @@ void CrossPointWebServerActivity::loop() {
           mappedInput.update();
           // Check for exit button inside loop for responsiveness
           if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
-            // Set SHUTTING_DOWN before onGoHome() so any queued render completes instantly
-            // (render() skips displayBuffer() in this state), preventing the main task from
-            // blocking behind multiple back-to-back e-ink refreshes.
+            // Set SHUTTING_DOWN before onGoHome() so any queued render returns without
+            // calling displayBuffer() — prevents blocking behind an in-progress e-ink refresh.
+            // Do NOT reset webServer here: closing active WebSocket connections blocks the
+            // main task. onExit() disconnects WiFi first (killing all connections) then
+            // silentRestart() reboots, so explicit cleanup is unnecessary.
             state = WebServerActivityState::SHUTTING_DOWN;
-            webServer.reset();
             onGoHome();
             return;
           }
@@ -356,7 +356,6 @@ void CrossPointWebServerActivity::loop() {
     // Handle exit on Back button (also check outside loop)
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
       state = WebServerActivityState::SHUTTING_DOWN;
-      webServer.reset();
       onGoHome();
       return;
     }
