@@ -7,6 +7,7 @@
 #include <WiFi.h>
 #include <esp_task_wdt.h>
 
+#include <Memory.h>
 #include <cstddef>
 
 #include "MappedInputManager.h"
@@ -232,7 +233,12 @@ void CrossPointWebServerActivity::startWebServer() {
   LOG_DBG("WEBACT", "Starting web server...");
 
   // Create the web server instance
-  webServer.reset(new CrossPointWebServer());
+  webServer = makeUniqueNoThrow<CrossPointWebServer>();
+  if (!webServer) {
+    LOG_ERR("WEBACT", "OOM: CrossPointWebServer");
+    onGoHome();
+    return;
+  }
   webServer->begin();
 
   if (webServer->isRunning()) {
@@ -279,6 +285,7 @@ void CrossPointWebServerActivity::loop() {
           if (millis() - firstDisconnectAt > WIFI_ABANDON_MS) {
             LOG_DBG("WEBACT", "WiFi unavailable for >%lu s; returning to network selection", WIFI_ABANDON_MS / 1000UL);
             state = WebServerActivityState::SHUTTING_DOWN;
+            webServer.reset();
             onGoHome();
             return;
           }
@@ -333,6 +340,11 @@ void CrossPointWebServerActivity::loop() {
           mappedInput.update();
           // Check for exit button inside loop for responsiveness
           if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+            // Set SHUTTING_DOWN before onGoHome() so any queued render completes instantly
+            // (render() skips displayBuffer() in this state), preventing the main task from
+            // blocking behind multiple back-to-back e-ink refreshes.
+            state = WebServerActivityState::SHUTTING_DOWN;
+            webServer.reset();
             onGoHome();
             return;
           }
@@ -343,6 +355,8 @@ void CrossPointWebServerActivity::loop() {
 
     // Handle exit on Back button (also check outside loop)
     if (mappedInput.wasPressed(MappedInputManager::Button::Back)) {
+      state = WebServerActivityState::SHUTTING_DOWN;
+      webServer.reset();
       onGoHome();
       return;
     }
@@ -377,11 +391,6 @@ void CrossPointWebServerActivity::render(RenderLock&&) {
 void CrossPointWebServerActivity::renderServerRunning() const {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const auto pageWidth = renderer.getScreenWidth();
-
-  GUI.drawHeader(renderer, Rect{0, metrics.topPadding, pageWidth, metrics.headerHeight},
-                 isApMode ? tr(STR_HOTSPOT_MODE) : tr(STR_FILE_TRANSFER), nullptr);
-  GUI.drawSubHeader(renderer, Rect{0, metrics.topPadding + metrics.headerHeight, pageWidth, metrics.tabBarHeight},
-                    connectedSSID.c_str());
 
   if (!isApMode) {
     renderWifiIndicator(metrics.topPadding + metrics.headerHeight);
