@@ -43,6 +43,9 @@ class GfxRenderer {
   uint32_t frameBufferSize = HalDisplay::BUFFER_SIZE;
   std::vector<uint8_t*> bwBufferChunks;
   std::map<int, EpdFontFamily> fontMap;
+  // Mutable so displayBuffer() (a const method) can check it without needing
+  // the render task to hold a non-const reference to GfxRenderer.
+  mutable bool displaySuppressed = false;
   // Mutable because ensureSdCardFontReady() is const (called from layout code
   // that holds a const GfxRenderer&) but triggers SD card reads and heap
   // allocation inside the SdCardFont objects. Same pragmatic compromise as
@@ -108,6 +111,10 @@ class GfxRenderer {
   int getScreenWidth() const;
   int getScreenHeight() const;
   void displayBuffer(HalDisplay::RefreshMode refreshMode = HalDisplay::FAST_REFRESH) const;
+  // When true, displayBuffer() returns immediately without updating the hardware.
+  // Set by ActivityManager during activity transitions so the render lock is
+  // released quickly instead of blocking behind a ~1.5 s e-ink refresh.
+  void setDisplaySuppressed(bool suppressed) { displaySuppressed = suppressed; }
   // EXPERIMENTAL: Windowed update - display only a rectangular region
   // void displayWindow(int x, int y, int width, int height) const;
   void invertScreen() const;
