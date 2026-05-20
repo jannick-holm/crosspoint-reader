@@ -20,6 +20,8 @@
 #include "EpubReaderFootnotesActivity.h"
 #include "EpubReaderPercentSelectionActivity.h"
 #include "EpubReaderUtils.h"
+#include "BookloreCredentialStore.h"
+#include "BookloreSyncActivity.h"
 #include "KOReaderCredentialStore.h"
 #include "KOReaderSyncActivity.h"
 #include "MappedInputManager.h"
@@ -558,6 +560,45 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
         activityManager.replaceActivity(std::make_unique<KOReaderSyncActivity>(
             renderer, mappedInput, savedEpubPath, currentSpineIndex, currentPage, totalPages, std::move(localKoPos),
             std::move(localChapterName), paragraphIndex));
+      }
+      break;
+    }
+    case EpubReaderMenuActivity::MenuAction::BOOKLORE_SYNC: {
+      if (BOOKLORE_STORE.hasCredentials()) {
+        const int currentPage = section ? section->currentPage : nextPageNumber;
+        const int totalPages = section ? section->pageCount : cachedChapterTotalPageCount;
+
+        // Pre-compute local progress percentage and metadata while Epub is still in RAM.
+        CrossPointPosition localPos = {currentSpineIndex, currentPage, totalPages};
+        const KOReaderPosition localKoPos = ProgressMapper::toKOReader(epub, localPos);
+        const float localProgressPercent = localKoPos.percentage * 100.0f;
+        const std::string epubTitle = epub->getTitle();
+        const std::string epubAuthor = epub->getAuthor();
+        const std::string savedEpubPath = epub->getPath();
+
+        // Persist current position so the reader resumes at the right page on return.
+        if (!saveProgress(currentSpineIndex, currentPage, totalPages)) {
+          LOG_ERR("BLS", "Aborting Booklore sync because current progress could not be saved");
+          pendingSyncSaveError = true;
+          requestUpdate();
+          return;
+        }
+
+        // Release Epub and Section to free ~65KB RAM for the TLS handshake.
+        LOG_DBG("BLS", "Releasing epub for Booklore sync (heap before: %u)", (unsigned)ESP.getFreeHeap());
+        {
+          RenderLock lock(*this);
+          if (section) {
+            nextPageNumber = section->currentPage;
+          }
+          section.reset();
+          epub.reset();
+        }
+        LOG_DBG("BLS", "Epub released (heap after: %u)", (unsigned)ESP.getFreeHeap());
+
+        activityManager.replaceActivity(std::make_unique<BookloreSyncActivity>(
+            renderer, mappedInput, savedEpubPath, epubTitle, epubAuthor, localProgressPercent, currentSpineIndex,
+            currentPage));
       }
       break;
     }
