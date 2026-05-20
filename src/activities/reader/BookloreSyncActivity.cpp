@@ -214,7 +214,7 @@ void BookloreSyncActivity::applyRemoteProgress() {
   KOReaderPosition remoteKoPos;
   remoteKoPos.percentage = remoteProgressPercent / 100.0f;
   remoteKoPos.xpath = "";
-  remotePosition = ProgressMapper::toCrossPoint(epub, remoteKoPos, currentSpineIndex, 0);
+  remotePosition = ProgressMapper::toCrossPoint(epub, remoteKoPos, currentSpineIndex, currentTotalPages);
 
   saveProgressAndReturn(remotePosition.spineIndex, remotePosition.pageNumber);
 }

@@ -597,7 +597,7 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
 
       activityManager.replaceActivity(std::make_unique<BookloreSyncActivity>(
           renderer, mappedInput, savedEpubPath, epubTitle, epubAuthor, localProgressPercent, currentSpineIndex,
-          currentPage));
+          currentPage, totalPages));
       break;
     }
   }
