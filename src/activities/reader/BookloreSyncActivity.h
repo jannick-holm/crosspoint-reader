@@ -23,14 +23,15 @@ class BookloreSyncActivity final : public Activity {
   explicit BookloreSyncActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
                                 const std::string& epubPath, const std::string& title,
                                 const std::string& author, float localProgressPercent,
-                                int currentSpineIndex, int currentPage)
+                                int currentSpineIndex, int currentPage, int currentTotalPages)
       : Activity("BookloreSync", renderer, mappedInput),
         epubPath(epubPath),
         epubTitle(title),
         epubAuthor(author),
         localProgressPercent(localProgressPercent),
         currentSpineIndex(currentSpineIndex),
-        currentPage(currentPage) {}
+        currentPage(currentPage),
+        currentTotalPages(currentTotalPages) {}
 
   void onEnter() override;
   void onExit() override;
@@ -57,6 +58,7 @@ class BookloreSyncActivity final : public Activity {
   float localProgressPercent;
   int currentSpineIndex;
   int currentPage;
+  int currentTotalPages;
 
   State state = WIFI_SELECTION;
   std::string statusMessage;
